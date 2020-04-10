@@ -109,7 +109,7 @@ if %sedstatus% == 0x1 (
 :disable_sed86
 echo Phase 1: Attempting to disable Anti Tamper in normal boot mode. >> %logfile%
 @rem ---- [Script will attempt to set SEDDisabled Registry Key in normal boot mode. Otherwise, the script will boot the machine into safe-mode and execute auto-login with a temporary user account.] ----
-reg add "HKEY_LOCAL_MACHINE\SOFTWARE\KasperskyLab\protected\KES\settings" /v "EnablePswrdProtect" /t "REG_DWORD" /d 0 /f
+reg add "HKEY_LOCAL_MACHINE\SOFTWARE\KasperskyLab\protected\KES\settings" /v "EnablePswrdProtect" /t "REG_DWORD" /d 0 /f && reg delete "HKEY_LOCAL_MACHINE\SOFTWARE\KasperskyLab\protected\KES\settings" /v "OPEP" /f
 if %errorlevel% == 1 ( 
 	goto :safe_boot
 	goto :eof
@@ -121,7 +121,7 @@ if %errorlevel% == 1 (
 :disable_sed64
 echo Phase 1: Attempting to disable Anti Tamper in normal boot mode. >> %logfile%
 @rem ---- [Script will attempt to set SEDDisabled Registry Key in normal boot mode. Otherwise, the script will boot the machine into safe-mode and execute auto-login with a temporary user account.] ----
-reg add "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\KasperskyLab\protected\KES\settings" /v "EnablePswrdProtect" /t "REG_DWORD" /d 0 /f
+reg add "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\KasperskyLab\protected\KES\settings" /v "EnablePswrdProtect" /t "REG_DWORD" /d 0 /f && reg delete "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\KasperskyLab\protected\KES\settings" /v "OPEP" /f
 if %errorlevel% == 1 ( 
 	goto :safe_boot
 	goto :eof
@@ -274,6 +274,8 @@ if %sedstatus% == 0x1 (
 	shutdown -f -r -t 30
 ) else if %sedstatus% == 0x0 (
 	echo Anti-Tamper is disabled!
+	reg delete "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\KasperskyLab\protected\KES\settings" /v "OPEP" /f
+	
 )
 shutdown -r -t 30
 goto :eof
@@ -289,6 +291,7 @@ if %sedstatus% == 0x1 (
 	shutdown -f -r -t 30
 ) else if %sedstatus% == 0x0 (
 	echo Anti-Tamper is disabled!
+	reg delete "HKEY_LOCAL_MACHINE\SOFTWARE\KasperskyLab\protected\KES\settings" /v "OPEP" /f
 )
 shutdown -r -t 30
 goto :eof
@@ -332,8 +335,14 @@ ECHO                 **************************************
 ECHO                        Please wait..........
 ECHO                 **************************************
 
-
-for %%k in (%regkeys%) do call :check_key %%k %logfile%
+reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "%~n0" /f
+reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v "AutoAdminLogon" /f
+reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v "DefaultUserName" /f
+reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v "DefaultPassword" /f
+reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v "DefaultDomain" /f
+reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "*UndoSB" /f
+reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "*%~n0" /f
+for %%k in (%regkeys%) do call :check_key %%k %logfile% 
 cmd /U /C type %logfile% >> %logfile%
 start "" %logfile%
 exit /b
