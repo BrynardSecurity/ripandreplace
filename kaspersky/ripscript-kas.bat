@@ -5,7 +5,7 @@ setlocal EnableDelayedExpansion EnableExtensions
 
 @rem ---- [Variables] ----
 ::Specify the UNC path to your Rip&Replace package below. EG: \\server\path\to\package.exe
-set pkgdir=\\pdc01-hq.joe-burg.com\ITAdmins\Scripts\RipReplace\package.exe
+set pkgdir="\\10-ws2k19-pdc01.thebrynards.com\it_administrators\scripts\batch\rip&replace\package.exe"
 
 @rem ---- [Logging] ----
 for /f "usebackq" %%i in (`hostname`) do set targetcomp=%%i
@@ -82,19 +82,46 @@ for /f "tokens=1,2 delims={,}" %%a in ('wmic product where "name = 'ESET Endpoin
 )
 
 :start
-echo Phase 1: Check if Sophos Anti Tamper is enabled. >> %logfile%
-@rem ---- [The script will first check to see if Anti-Tamper is enabled. If so, the user will receive a prompt asking them if they would like to reboot into Safe Mode.] ----
-for /f "tokens=3" %%i in ('reg query "HKLM\SYSTEM\CurrentControlSet\Services\Sophos Endpoint Defense\TamperProtection\Config" /v "SEDEnabled" ^| findstr /i "REG_DWORD"') do (set sedstatus=%%i)
+echo Phase 1: Check if Kaspersky Password is set. >> %logfile%
+@rem ---- [The script will first check to see if Anti-Tamper is enabled. If so, the user will receive a prompt asking them if they would like to reboot into Safe Mode.] ----i
+if "%PROCESSOR_ARCHITECTURE%" == "AMD64" (
+goto :passwd64
+) else (
+	goto :passwd86
+)
+
+:passwd86
+for /f "tokens=3" %%i in ('reg query "HKEY_LOCAL_MACHINE\SOFTWARE\KasperskyLab\protected\KES\settings" /v "EnablePswrdProtect" ^| findstr /i "REG_DWORD"') do (set sedstatus=%%i)
 if %sedstatus% == 0x1 (
-	goto :disable_sed
+	goto :disable_sed86
 ) else if %sedstatus% == 0x0 (
 	goto :three
 )
 
-:disable_sed
+:passwd64
+for /f "tokens=3" %%i in ('reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\KasperskyLab\KES\settings" /v "EnablePswrdProtect" ^| findstr /i "REG_DWORD"') do (set sedstatus=%%i)
+if %sedstatus% == 0x1 (
+	goto :disable_sed64
+) else if %sedstatus% == 0x0 (
+	goto :three
+)
+
+:disable_sed86
 echo Phase 1: Attempting to disable Anti Tamper in normal boot mode. >> %logfile%
 @rem ---- [Script will attempt to set SEDDisabled Registry Key in normal boot mode. Otherwise, the script will boot the machine into safe-mode and execute auto-login with a temporary user account.] ----
-reg add "HKLM\SYSTEM\CurrentControlSet\Services\Sophos Endpoint Defense\TamperProtection\Config" /v "SEDEnabled" /t "REG_DWORD" /d 0 /f
+reg add "HKEY_LOCAL_MACHINE\SOFTWARE\KasperskyLab\protected\KES\settings" /v "EnablePswrdProtect" /t "REG_DWORD" /d 0 /f
+if %errorlevel% == 1 ( 
+	goto :safe_boot
+	goto :eof
+) else if %errorlevel% == 0 (
+	goto :three
+	goto :eof
+)
+
+:disable_sed64
+echo Phase 1: Attempting to disable Anti Tamper in normal boot mode. >> %logfile%
+@rem ---- [Script will attempt to set SEDDisabled Registry Key in normal boot mode. Otherwise, the script will boot the machine into safe-mode and execute auto-login with a temporary user account.] ----
+reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\KasperskyLab\KES\settings" /v "EnablePswrdProtect" /t "REG_DWORD" /d 0 /f
 if %errorlevel% == 1 ( 
 	goto :safe_boot
 	goto :eof
@@ -229,9 +256,32 @@ endlocal & exit /b %exitCode%
 echo three >%~dp0current.txt
 echo Phase 2: Setting registry key to disable Anti Tamper >> %logfile%
 @rem ---- [Script will set registry key value for AntiTamper to 0 to disable AntiTamper] ----
-reg add "HKLM\System\CurrentControlSet\Services\Sophos Endpoint Defense\TamperProtection\Config" /v "SEDEnabled" /t "REG_DWORD" /d 0 /f
+if "%PROCESSOR_ARCHITECTURE%" == "AMD64" (
+goto :passwd64
+) else (
+	goto :passwd86
+)
+
+
+:passwd64
+reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\KasperskyLab\KES\settings" /v "EnablePswrdProtect" /t "REG_DWORD" /d 0 /f
 ::Check to ensure anti-tamper is disabled
-for /f "tokens=3" %%i in ('reg query "HKLM\SYSTEM\CurrentControlSet\Services\Sophos Endpoint Defense\TamperProtection\Config" /v "SEDEnabled" ^| findstr /i "REG_DWORD"') do (set sedstatus=%%i)
+for /f "tokens=3" %%i in ('reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\KasperskyLab\KES\settings" /v "EnablePswrdProtect" ^| findstr /i "REG_DWORD"') do (set sedstatus=%%i)
+if %sedstatus% == 0x1 (
+	echo Anti-Tamper is still enabled!
+	echo four >%~dp0current.txt
+	echo Script was unable to disable AntiTamper! Please try disabling manually.
+	shutdown -f -r -t 30
+) else if %sedstatus% == 0x0 (
+	echo Anti-Tamper is disabled!
+)
+shutdown -r -t 30
+goto :eof
+
+:passwd86
+reg add "HKEY_LOCAL_MACHINE\SOFTWARE\KasperskyLab\protected\KES\settings" /v "EnablePswrdProtect" /t "REG_DWORD" /d 0 /f
+::Check to ensure anti-tamper is disabled
+for /f "tokens=3" %%i in ('reg query "HKEY_LOCAL_MACHINE\SOFTWARE\KasperskyLab\protected\KES\settings" /v "EnablePswrdProtect" ^| findstr /i "REG_DWORD"') do (set sedstatus=%%i)
 if %sedstatus% == 0x1 (
 	echo Anti-Tamper is still enabled!
 	echo four >%~dp0current.txt
