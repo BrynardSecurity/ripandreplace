@@ -300,6 +300,8 @@ goto :eof
 echo four >%~dp0current.txt
 echo Phase 3: Copying Rip & Replace package >> %logfile%
 
+wmic product where "name like 'Kaspersky%'" call uninstall /nointeractive
+
 if not exist %~dp0package.exe (
 	copy %pkgdir% %~dp0package.exe
 	start /wait "" "%~dp0package.exe
@@ -314,6 +316,9 @@ goto :eof
 
 :four
 echo Phase 4: Cleanup >> %logfile%
+
+wmic product where "name like 'Kaspersky%'" call uninstall /nointeractive
+
 for /f %%i in (%~dp0.filestodel) do (
 	del /Q /S %%i
 	del /Q /S %~dp0current.txt
